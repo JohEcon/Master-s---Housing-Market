@@ -81,6 +81,7 @@ class Loan(Agent):
             self._annuity_after_tax = self.annuity_tax()
 
         if id_event == Event.update:
+
             self.pay_annuity()
 
 
@@ -160,9 +161,13 @@ class Houses(Agent):
             self._for_sale = True
             self._seller = seller
             self._periods_for_sale = 0
-            if len(Statistics.sorted_house_q) > 1:
-                self._price = Settings.price_premium * local_mean_get_value(self.quality, Statistics.sorted_house_q, Statistics.sorted_house_p)
-            Simulation.houses_for_sale.append(self)
+            try:
+                if len(Statistics.sorted_house_q) > 1:
+                    self._price = Settings.price_premium * local_mean_get_value(self.quality, Statistics.sorted_house_q, Statistics.sorted_house_p)
+                    Simulation.houses_for_sale.append(self)
+            except:
+                self._price = self.quality*10
+                print("setting for sale error")
         else:
             pass
 
@@ -204,9 +209,10 @@ class Houses(Agent):
         if id_event == Event.period_end:
                 #update expected house price
                 if Simulation.time % Settings.periods_between_price_assessment == 0:
-                    if len(Statistics.sorted_house_q) > 1:
-                        self._exp_price = local_mean_get_value(self.quality, Statistics.sorted_house_q, Statistics.sorted_house_p)
-                    else:
+                    try:
+                        if len(Statistics.sorted_house_q) > 1:
+                            self._exp_price = local_mean_get_value(self.quality, Statistics.sorted_house_q, Statistics.sorted_house_p)
+                    except:
                         self._exp_price = self._price
 
         if id_event == Event.stop:
@@ -214,7 +220,7 @@ class Houses(Agent):
                 print(repr(self))
 
 class Bank(Agent):
-    def __init__(self, parent = None, interest = Settings.interest):
+    def __init__(self, parent = None, interest = Settings.rf_interest):
         super().__init__(parent)
         self._interest = interest
 
@@ -227,7 +233,7 @@ class Bank(Agent):
     # Method that tells a household the price cap for house purchase given income and equity
     def max_budget_household(self, lender):
         piti = lender.income * Settings.piti_multiplier
-        interest = Settings.interest
+        interest = self._interest
         max_loan_piti = (piti*(1-(1 + interest/Settings.periods_in_year)**(-(Settings.loan_length*Settings.periods_in_year))))/(interest/Settings.periods_in_year)
         max_loan_income = Settings.periods_in_year * Settings.income_loan_multiplier * lender.income
         max_loan = min(max_loan_piti, max_loan_income)
@@ -238,7 +244,7 @@ class Bank(Agent):
         return max_budget
 
     def get_annuity(self, principal):
-        interest = Settings.interest
+        interest = self._interest
         annuity = ( principal * (interest/Settings.periods_in_year) ) / ((1 - (1 + (interest / Settings.periods_in_year)) ** ( - (Settings.loan_length*Settings.periods_in_year) )))
         return annuity
 
@@ -249,12 +255,12 @@ class Bank(Agent):
             principal = house_price
 
         annuity = self.get_annuity(principal)
-        owner.set_loan(Loan(parent=Bank.Loans, principal=principal, interest=Settings.interest, annuity=annuity, owner=owner))
+        owner.set_loan(Loan(parent=Bank.Loans, principal=principal, interest=self._interest, annuity=annuity, owner=owner))
 
     def event_proc(self, id_event):
         super().event_proc(id_event)
         if id_event == Event.period_start:
-            pass
+            self._interest = Settings.rf_interest + 0.00002*Simulation.time
 
 class Household(Agent):
 
@@ -267,6 +273,7 @@ class Household(Agent):
         self._pdeath = pdeath
         self._dead = dead
         self._moving = moving
+        self._searching = False
         self._house_owned = house_owned
         self._renting = True
         self._house_selling = None
@@ -274,10 +281,11 @@ class Household(Agent):
         self._houses_bought = 0
         self._loan = None
         self._equity = None
-        self._utility = None
+        self._utility = 0
         self._low_income_count = 0
         self._utility_alpha = Settings.utility_alpha
         self._annuity = 0
+
         self._turns_moving = 0
         self._seen_houses = []
         if self._loan != None:
@@ -286,7 +294,7 @@ class Household(Agent):
             self._disposable = pay_income_taxes(self._income)
 
     def __repr__(self):
-        return "Household(ID: {a}, Wealth: {b}, Income: {c}, after_tax: {aa}, disposable income: {cc}, Age: {d}, House ID: {e}, renting:{qq}, House quality: {f}, Annuity: {kk}, house selling: {ff}, utility: {dd}, p-death: {g}, max budget: {h}, loan id:{bb} moving: {i}, houses bought: {j}, alpha: {k} )".format(
+        return "Household(ID: {a}, Wealth: {b}, Income: {c}, after_tax: {aa}, disposable income: {cc}, Age: {d}, House ID: {e}, renting:{qq}, House quality: {f}, Annuity: {kk}, house selling: {ff}, utility: {dd}, p-death: {g}, max budget: {h}, loan id:{bb} moving: {i}, searching: {aaa} houses bought: {j}, alpha: {k} )".format(
             a = self._id, b=round(self._wealth),
             c = round(self._income), d=self._age,
             e = self._house_owned.get_id() if self.house_owned != None else None,
@@ -299,7 +307,8 @@ class Household(Agent):
             dd = round(self.household_utility(self.house_owned),1),
             kk = self._loan.annuity_after_tax if self._loan != None else 0,
             ff = self._house_selling.get_id() if self._house_selling != None else None,
-            qq = self._renting)
+            qq = self._renting,
+            aaa = self._searching)
 
     def get_houses_bought(self):
         return self._houses_bought
@@ -329,6 +338,10 @@ class Household(Agent):
     @property
     def house_selling(self):
         return self._house_selling
+
+    @property
+    def searching(self):
+        return self._searching
 
     @property
     def renting(self):
@@ -402,7 +415,7 @@ class Household(Agent):
             annuity = float(house.annuity)
 
         if house != self.house_owned and house !=Simulation.rent_unit:
-            annuity = Simulation.bank.get_annuity(house.price - self.equity if self.equity != None else house.price)
+            annuity = Simulation.bank.get_annuity(house.price - 0.8*self.equity if self.equity != None else house.price)
 
         if house == self.house_owned:
             if self.loan != None:
@@ -420,7 +433,7 @@ class Household(Agent):
             quality = Settings.rent_quality
         a = self.utility_alpha
         #remember to change utility in "search interval" if this is changed
-        cd_utility = math.log10(spending) * a + math.log10(quality) * (1 - a)
+        cd_utility = math.log10(spending) * (1 - a) + math.log10(quality) * a
         return cd_utility
 
     def bankrupt(self):
@@ -495,6 +508,7 @@ class Household(Agent):
                     self._equity = self.house_owned.exp_price - self.loan.principal
                     self._disposable = pay_income_taxes(self._income) - self._loan.annuity_after_tax
                 else:
+                    self._utility = self.household_utility(Simulation.rent_unit)
                     self._equity = self.house_owned.exp_price
                     self._disposable = pay_income_taxes(self._income)
 
@@ -521,7 +535,8 @@ class Household(Agent):
                         self.house_selling.price_change(Settings.price_adjustment)
 
             #check if household wants to move, if so, initiate moving procedure. Households wont move if they have not sold old house yet
-                if random.uniform(0,1) < dict_move_prop[self.age] and self._moving == False and self._house_selling == None or self._low_income_count > 2 and self._moving == False and self._house_selling == None :
+                if random.uniform(0,1) < dict_move_prop[self.age]/2 and self._moving == False and self._house_selling == None and self._searching == False or self._low_income_count > 1 and self._moving == False and self._house_selling == None:
+                    print("agent started moving period: {}".format(Simulation.time))
                     self._moving = True
                     self._turns_moving = 0
                     self._seen_houses = []
@@ -534,6 +549,8 @@ class Household(Agent):
                         pass
 
                 if self._moving == True:
+                    if self._turns_moving > 48:
+                        self._moving = False
                     self._turns_moving += 1
                     best_house = None
                     first = True
@@ -545,8 +562,7 @@ class Household(Agent):
                     houses_in_survey = []
                     move_rent_unit = False
                     while len(houses_in_survey) < Settings.houses_surveyed and houses_checked < Settings.max_houses_checked:
-                        if houses_checked == 40:
-                            print("many houses checked. period: {}".format(Simulation.time))
+
                         if Simulation.houses_for_sale:
                             house_check = random.choice(Simulation.houses_for_sale)
                             houses_checked += 1
@@ -577,8 +593,7 @@ class Household(Agent):
 
                     #test if the found best house is good enough to move into:
                     if best_house != None:
-                        if test_if_buy(self._seen_houses, test_percentile(self._seen_houses, self.household_utility(best_house))) == True:
-                            print(len(self._seen_houses))
+                        if test_if_buy(self._seen_houses, test_percentile(self._seen_houses, self.household_utility(best_house))) == True and self.household_utility(best_house):
                             if best_house == Simulation.rent_unit:
                                 #Move to rent unit if it gave the most utility
                                 best_house = None
@@ -587,7 +602,7 @@ class Household(Agent):
                                 self._moving = False
                                 print("moved to rent unit after {} periods on the market".format(self._turns_moving))
                             else:
-                                print("moved to house after {} periods on the market".format(self._turns_moving))
+                                print("moved to house after {} periods on the market, houses checked: {}".format(self._turns_moving, len(self._seen_houses)))
                                 # buy the best house found:
                                 # remove former loan
                                 if self.loan != None:
@@ -598,9 +613,94 @@ class Household(Agent):
                                 self.communication(Communication.buy_house, best_house)
                                 self._moving = False
 
+                #check if agent wants do do a house search, if so, initiate search procedure.
+                if random.uniform(0, 1) < dict_search_prop[self.age]/2 and self._moving == False and self._house_selling == None and self._searching == False:
+                    print("agent started period: {}".format(Simulation.time))
+                    self._searching = True
+                    self._turns_searching = 0
+                    self._seen_houses = []
+
+                if self._searching == True:
+                    #stop searching procedure if searched for too long:
+                    if self._turns_searching > 2:
+                        self._searching = False
+                        print("stopped searching")
+                    self._turns_searching += 1
+                    best_house = None
+                    first = True
+                    # Asking the bank how much the largest possible loan the household can get is (Budget constraint)
+                    self._max_budget = Simulation.bank.max_budget_household(self)
+
+                    # Agents find up to 4 houses they can afford
+                    houses_checked = 0
+                    houses_in_survey = []
+                    move_rent_unit = False
+                    while len(houses_in_survey) < Settings.houses_surveyed and houses_checked < Settings.max_houses_checked:
+                        if Simulation.houses_for_sale:
+                            house_check = random.choice(Simulation.houses_for_sale)
+                            houses_checked += 1
+                            if house_check.price <= self._max_budget and houses_in_survey.count(house_check) < 1:
+                                self._seen_houses.append(self.household_utility(house_check))
+                                houses_in_survey.append(house_check)
+                        if not Simulation.houses_for_sale:
+                            break
+
+                    #Agents find the best house out of the chosen ones
+                    houses_in_survey_utility = []
+                    for n in houses_in_survey:
+                        if n != self.house_owned and self != n.seller:
+                            if first == True:
+                                best_house = n
+                                first = False
+                            if self.household_utility(n) > self.household_utility(best_house):
+                                best_house = n
+                            else:
+                                pass
+                    if best_house == None:
+                        pass
+
+                    #test if found house is better than rent unit
+                    if best_house != None:
+                        if self.household_utility(Simulation.rent_unit) > self.household_utility(best_house):
+                            best_house = Simulation.rent_unit
+
+                    #test if the found best house is good enough to move into:
+                    if best_house != None:
+                        if test_if_buy(self._seen_houses, test_percentile(self._seen_houses, self.household_utility(best_house))) == True and self.household_utility(best_house) > self._utility:
+                            if self._house_owned != None:
+                                self._house_selling = self.house_owned
+                                self.house_owned.setting_for_sale(self)
+                            else:
+                                pass
+                            if best_house == Simulation.rent_unit:
+                                #Move to rent unit if it gave the most utility
+                                best_house = None
+                                move_rent_unit = True
+                                self._renting = True
+                                self._searching = False
+                                print("moved to rent unit after {} search on the market".format(self._turns_moving))
+                                # if already house owner, set own house for sale
+
+                            else:
+                                print("moved to house after {} search on the market, houses checked: {}".format(self._turns_searching, len(self._seen_houses)))
+                                # buy the best house found:
+                                # remove former loan
+                                # if already house owner, set own house for sale
+
+                                if self.loan != None:
+                                    self.loan.remove_this_agent()
+                                # get loan for house
+                                Simulation.bank.get_loan(best_house.price, self)
+                                # buy the best house found
+                                self.communication(Communication.buy_house, best_house)
+                                self._searching = False
+
+
+
                 #check if agent dies
                 if random.uniform(0, 1) < self._pdeath:
                     self.household_dies()
+
 
         if id_event == Event.update_year:
             if self._dead == False:
@@ -610,7 +710,7 @@ class Household(Agent):
 
                 if self._age < Settings.retire_age:
                     self._income += dict_income_raise[get_index(self._age)]
-                    self._income = self._income * (math.exp(numpy.random.normal(0, 0.113) + numpy.random.normal(0, 0.155)))
+                    self._income = self._income * (math.exp(numpy.random.normal(0, 0.113)))
 
                 if self._age == Settings.retire_age:
                     self._income = self._income*Settings.pension_share
@@ -715,34 +815,63 @@ class Statistics(Agent):
         if id_event == Event.stop:
             household_inc = []
             household_q = []
+            household_inc_all= []
+            house_q = []
+            for n in Simulation.houses:
+                house_q.append(n.quality)
+
             for n in Simulation.households:
-                household_inc.append(n.income)
+                household_inc_all.append(n.income)
                 if n.house_owned != None:
+                    household_inc.append(n.income)
                     household_q.append(n.house_owned.quality)
                 else:
-                    household_q.append(Simulation.rent_unit.quality)
+                    pass
+                    #household_q.append(Simulation.rent_unit.quality)
 
             print(len(household_inc))
             print(len(household_q))
 
+            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
+            fig, (ax3, ax4, ax5) = plt.subplots(nrows=1, ncols=3,figsize = (8, 4))
+            ax1.hist(household_inc_all, bins=600, color="black")
+            ax1.axis(xmin=0, xmax=100000)
+            ax1.set_xticks([11500, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000])
+            ax1.set_yticks([])
+            xlabels = ['{:,.0f}'.format(x) + 'K' for x in ax1.get_xticks() / 1000]
+            ax1.set_xticklabels(xlabels)
+            ax1.set_xlabel("Monthly Income")
 
+            ax2.hist(house_q, bins=800, color="black")
+            ax2.axis(xmin=0, xmax=100000)
+            ax2.set_xticks([10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000])
+            xlabels = ['{:,.0f}'.format(x) + 'K' for x in ax2.get_xticks() / 1000]
+            ax2.set_xticklabels(xlabels)
 
-            plt.subplot(131)
-            plt.scatter(Statistics.period[-51: -1], Statistics.avg_days_in_market[-51: -1])
-            #plt.hist(Statistics.agg_house_quality, bins=40)
-            #making scatterplot of house quality/price
+            ax3.scatter(Statistics.period[-20: -1], Statistics.avg_days_in_market[-20: -1])
+
             plt_listx = Statistics.agg_house_quality[-101 :-1]
             plt_listy = Statistics.agg_house_price[-101 :-1]
-            plt.subplot(132)
-            plt.scatter(plt_listx, plt_listy)
-            plt.title("House price and quality")
-            plt.xlabel("quality")
-            plt.ylabel("price")
+            ax4.scatter(plt_listx, plt_listy)
+            ax4.set_title("House price and quality")
+            ax4.set_xlabel("quality")
+            ax4.set_ylabel("price")
+
+            ax5.scatter(household_q, household_inc)
+            ax5.axis(xmin=0.00, xmax=1, ymin=5000, ymax=100000)
+
+            fig.tight_layout()
+
+            #plt.hist(Statistics.agg_house_quality, bins=40)
+            #making scatterplot of house quality/price
+
             print(sum(Statistics.agg_days_in_market[-3001 :-1])/len(Statistics.agg_days_in_market[-3001 :-1]))
-            plt.subplot(133)
-            plt.xlim(0.06, 1)
-            plt.ylim(5000, 50000)
-            plt.scatter(household_q, household_inc)
+
+            print(household_q)
+            print(household_inc)
+
+
+
 
             renters = []
             for n in Simulation.households:

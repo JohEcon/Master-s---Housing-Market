@@ -1,21 +1,21 @@
-from Model_Simulation import *
+from Model_Simulation_new_method import *
 all_houses_quality = []
 all_incomes = []
 all_ages = []
 kh_number = 0
 total_income = 0
 
-for n in Simulation.Houses:
+for n in Simulation.House:
         all_houses_quality.append(n.quality)
 
 
-for n in Simulation.Households:
+for n in Simulation.Household:
     if n.dead == 0:
         all_incomes.append(n.income)
     else:
         pass
 
-for n in Simulation.Households:
+for n in Simulation.Household:
     if n.dead == 0:
         all_ages.append(n.age)
     else:
@@ -59,3 +59,4 @@ plt.show()
 plt.hist(all_ages, bins=dict_bin_ages2, color="blue")
 plt.axis(xmin=20, xmax=110)
 plt.show()
+
