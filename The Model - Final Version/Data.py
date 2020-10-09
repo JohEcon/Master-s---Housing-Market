@@ -733,3 +733,9 @@ dict_annuity = {
 359	:	0.00663348086668648	,
 360	:	0.00332225913624197	,
 }
+
+#test_value = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+#for n in test_value:
+#    house_price = local_mean_get_value(n, Statistics.sorted_house_q, Statistics.sorted_house_p)
+#    utility = math.log10(funds - Simulation.bank.get_annuity(
+#       house_price - self.equity if self.equity != None else house_price)) * a + math.log10(test_value) * (1 - a)

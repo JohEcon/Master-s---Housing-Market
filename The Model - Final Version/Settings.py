@@ -4,32 +4,34 @@ import numpy
 class Settings: pass
 #--------------------------------------------
 #Number of agents and periods settings
-Settings.number_of_agents = 1000
-Settings.share_of_houses = 0.6 #number of houses compared to number of agents
-Settings.number_of_periods = 1200 #number of periods the model will run
+Settings.number_of_agents = 2000
+Settings.share_of_houses = 0.6#number of houses compared to number of agents
+Settings.number_of_periods = 2400 #number of periods the model will run
 Settings.periods_in_year = 12
 #--------------------------------------------
 
 #House selling and buying settings
-Settings.max_houses_checked = 40 #number of houses compared to number of agents
 Settings.price_adjustment_frequency = 1 #how often seller lowers house price
 Settings.price_adjustment = -0.01 #how much seller lowers house price with
 Settings.houses_surveyed = 4 #how many houses a household can inspect in one period
 Settings.price_premium = 1.06 #how much higher the sellers listing price is compared to valuation
+Settings.price_range = 600000 # the +/- range households will use when searching for houses
+Settings.dynamic_search_range = 0 #set 0 for off 1 for on. Setting on will slow down runtime of model
 Settings.periods_between_price_assessment = 12 #how often hoseholds not for sale get valuated
+
 #--------------------------------------------
 #tax settings
 Settings.bundfradrag = 46500
 Settings.topskat_limit = 531000 * 1.08
 Settings.arbejdsmarkedsbidrag = 0.08
-Settings.bundskat = 0.26 + 0.0075 + 0.1211
+Settings.bundskat = 0.26 + 0.0075 + 0.1211 #minicipality tax, church tax and bundtax
 Settings.topskat = 0.15
 Settings.skatteloft = 0.5206
 Settings.interest_tax = 0
 #--------------------------------------------
 
 #income and age settings
-Settings.starting_income = 10000
+Settings.starting_income = 12000
 Settings.su_income = 6200
 Settings.kh_income = 11500
 Settings.pension_share = 0.9
@@ -43,8 +45,8 @@ Settings.max_age = 109
 Settings.rf_interest = 0.04 #risk free interest rate
 Settings.piti_multiplier = 0.28 #how much annuity can make up of households total income
 Settings.loan_length = 30 #how long loan maturity is in years
-Settings.minimum_disposable = 2500 #the minimum income the household can have and not be in danger of bankruptcy
-Settings.minimum_disposable_ratio = 0.1 #the minimum income the household can have as share of income and not be in danger of bankruptcy
+Settings.minimum_disposable = 4000 #the minimum income the household can have and not be in danger of bankruptcy, does not apply to households under 30
+Settings.minimum_disposable_ratio = 0.20 #the minimum disposable income the household can have as share of income and not be in danger of bankruptcy
 Settings.max_low_income_count = 6 #how many periods household can have a low income before bankruptcy
 Settings.income_loan_multiplier = 3.5 #how much a household can lend compared to yearly income
 #--------------------------------------------
@@ -57,8 +59,8 @@ Settings.ratio_print = 0.02 #share of how many houses/households/loans informati
 #other settings
 Settings.utility_alpha = 0.287
 Settings.random_seed = 1 #If equal to 0, seed is random
-Settings.rent_quality = 0.05
-Settings.rent_annuity = 2500
+Settings.rent_quality = 30
+Settings.rent_annuity = 3000
 
 
 
@@ -73,7 +75,7 @@ def prop_death(age):
     return y
 
 #Function used by buyers to check if they want to buy an inspected house
-Settings.number_of_batches = 10
+Settings.number_of_batches = 6
 Settings.periods_regression = 6
 def test_percentile(list, number):
     counter = 0
