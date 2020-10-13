@@ -4,7 +4,7 @@ import numpy
 class Settings: pass
 #--------------------------------------------
 #Number of agents and periods settings
-Settings.number_of_agents = 2000
+Settings.number_of_agents = 5000
 Settings.share_of_houses = 0.6#number of houses compared to number of agents
 Settings.number_of_periods = 2400 #number of periods the model will run
 Settings.periods_in_year = 12
@@ -12,7 +12,8 @@ Settings.periods_in_year = 12
 
 #House selling and buying settings
 Settings.price_adjustment_frequency = 1 #how often seller lowers house price
-Settings.price_adjustment = -0.01 #how much seller lowers house price with
+Settings.price_adjustment = -0.015 #how much seller lowers house price with
+Settings.max_houses_checked = 50 #how many houses the household will examine if it should be surveyed
 Settings.houses_surveyed = 4 #how many houses a household can inspect in one period
 Settings.price_premium = 1.06 #how much higher the sellers listing price is compared to valuation
 Settings.price_range = 600000 # the +/- range households will use when searching for houses

@@ -1,5 +1,6 @@
 # We import the DREAM agent
 import numpy
+import statistics
 import matplotlib.pyplot as plt
 from Data import *
 from Settings import *
@@ -265,7 +266,7 @@ class Bank(Agent):
 
     def set_interest(self):
         try:
-            default = sum(Statistics.defaults[-24:-1])*8 / (sum(Statistics.loans[-12:-1]) / 12)
+            default = sum(Statistics.defaults[-24:-1])*6 / (sum(Statistics.loans[-12:-1]) / 12)
             coll = sum(Statistics.coll_tot_all[-12:-1])/12
             mortgage = (1+Settings.rf_interest-default*coll)/(1-default)-1
         except:
@@ -478,14 +479,16 @@ class Household(Agent):
             self._house_owned = house
             house.setting_owner(self)
             #unlist house and add periods for sale to statistics
-            Statistics.days_in_market.append(house._periods_for_sale)
+            Statistics.days_in_market += house._periods_for_sale
             house.unlisting_house()
             #Add house sales price and quality to statistics database
 
-            Statistics.house_quality.append(house.quality)
-            Statistics.house_price.append(house.price)
             Statistics.house_q.append(house.quality)
             Statistics.house_p.append(house.price)
+            Statistics.house_quality.append(house.quality)
+            Statistics.house_price.append(house.price)
+
+            Statistics.w_p_q.append(house.price/house.quality)
             Statistics.sales_this_period += 1
 
 
@@ -551,7 +554,7 @@ class Household(Agent):
                         self.house_selling.price_change(Settings.price_adjustment)
 
             #check if household wants to move, if so, initiate moving procedure. Households wont move if they have not sold old house yet
-                if random.uniform(0,1) < dict_move_prop[self.age] and self._moving == False and self._house_selling == None and self._searching == False or self._low_income_count > 1 and self._moving == False and self._house_selling == None:
+                if random.uniform(0,1) < dict_move_prop[self.age]/1.5 and self._moving == False and self._house_selling == None and self._searching == False or self._low_income_count > 1 and self._moving == False and self._house_selling == None:
                     self._moving = True
                     self._turns_moving = 0
                     self._seen_houses = []
@@ -564,8 +567,6 @@ class Household(Agent):
                         pass
 
                 if self._moving == True:
-                    if self._turns_moving > 48:
-                        self._moving = False
                     self._turns_moving += 1
                     best_house = None
                     first = True
@@ -583,9 +584,9 @@ class Household(Agent):
                     move_rent_unit = False
 
                     if Simulation.houses_for_sale:
-                        shuffle_houses = Simulation.houses_for_sale
-                        random.shuffle(shuffle_houses)
-                        for house_check in shuffle_houses:
+                        for house_check in Simulation.houses_for_sale:
+                            if houses_checked > Settings.max_houses_checked:
+                                break
                             houses_checked += 1
                             if house_check.price <= search_range and house_check.price >= search_range - 2*Settings.price_range and houses_in_survey.count(house_check) < 1:
                                 self._seen_houses.append(self.household_utility(house_check))
@@ -634,7 +635,7 @@ class Household(Agent):
                                 self._moving = False
 
                 #check if agent wants do do a house search, if so, initiate search procedure.
-                if random.uniform(0, 1) < dict_search_prop[self.age] and self._moving == False and self._house_selling == None and self._searching == False:
+                if random.uniform(0, 1) < dict_search_prop[self.age]/1.5 and self._moving == False and self._house_selling == None and self._searching == False:
                     self._searching = True
                     self._turns_searching = 0
                     self._seen_houses = []
@@ -654,9 +655,10 @@ class Household(Agent):
                     houses_in_survey = []
                     move_rent_unit = False
                     if Simulation.houses_for_sale:
-                        shuffle_houses = Simulation.houses_for_sale
-                        random.shuffle(shuffle_houses)
-                        for house_check in shuffle_houses:
+
+                        for house_check in Simulation.houses_for_sale:
+                            if houses_checked > Settings.max_houses_checked:
+                                break
                             houses_checked += 1
                             if house_check.price <= self._max_budget and houses_in_survey.count(house_check) < 1:
                                 self._seen_houses.append(self.household_utility(house_check))
@@ -758,17 +760,19 @@ class Statistics(Agent):
             Statistics.sales_this_period = 0
             Statistics.defaults_period = 0
             Statistics.sales_last_interval = 0
+            Statistics.days_in_market = 0
             Statistics.sales_total = []
             Statistics.interest = []
             Statistics.defaults = []
             Statistics.loans = []
             Statistics.coll_tot_all = []
             Statistics.income = []
-            Statistics.days_in_market = []
-
+            Statistics.avg_days_period = []
             Statistics.avg_days_in_market = []
             Statistics.house_quality = []
             Statistics.house_price = []
+            Statistics.w_p_q = []
+            Statistics.w_price_quality = []
             Statistics.sorted_house_quality = []
             Statistics.sorted_house_price = []
             Statistics.house_q = []
@@ -804,7 +808,7 @@ class Statistics(Agent):
             # we add sales this period to list of all sales:
             Statistics.sales_total.append(Statistics.sales_this_period)
             Statistics.sales_last_interval = sum(Statistics.sales_total[-Settings.periods_regression:-1])+Statistics.sales_total[-1]
-            Statistics.sales_this_period = 0
+
 
             #We do the local regression
             if Statistics.sales_last_interval > 1:
@@ -812,15 +816,17 @@ class Statistics(Agent):
                                                                                             Statistics.house_p[-Statistics.sales_last_interval:-1],
                                                                                             Settings.number_of_batches)
 
-            if len(Statistics.days_in_market) > 5:
-                avg_days = sum(Statistics.days_in_market[-6: -1]) / 6
-
+            if Statistics.sales_this_period > 0:
+                avg_days = Statistics.days_in_market/Statistics.sales_this_period
             else:
                 avg_days = 0
-            Statistics.avg_days_in_market.append(avg_days)
 
+            Statistics.avg_days_in_market.append(avg_days)
+            Statistics.avg_days_period.append(sum(Statistics.avg_days_in_market[-13: -1])/12)
             Statistics.period.append(Simulation.time)
             Statistics.interest.append(Simulation.bank._interest)
+            Statistics.days_in_market = 0
+            Statistics.sales_this_period = 0
 
         if id_event == Event.period_end:
             pass
@@ -830,6 +836,10 @@ class Statistics(Agent):
             household_q = []
             household_inc_all= []
             house_q = []
+            Statistics.w_price_quality = [p/q for p,q in zip(Statistics.house_price, Statistics.house_quality)]
+            print(Statistics.w_price_quality)
+
+
             for n in Simulation.houses:
                 house_q.append(n.quality)
 
@@ -859,7 +869,7 @@ class Statistics(Agent):
             xlabels = ['{:,.0f}'.format(x) + 'K' for x in ax2.get_xticks() / 1000]
             ax2.set_xticklabels(xlabels)
 
-            ax3.scatter(Statistics.period, Statistics.avg_days_in_market)
+            ax3.scatter(Statistics.period, Statistics.avg_days_period)
             ax3.axis(ymin=0, ymax=40)
             plt_listx = Statistics.house_quality[-101 :-1]
             plt_listy = Statistics.house_price[-101 :-1]
@@ -873,7 +883,7 @@ class Statistics(Agent):
             print(household_q)
             print(household_inc)
             ax6.bar(Statistics.period,Statistics.interest)
-            ax5.axis(ymin=0.04)
+            ax6.axis(ymin=0.04)
 
             fig.tight_layout()
 
@@ -882,6 +892,7 @@ class Statistics(Agent):
                 if n.renting == True:
                     renters.append(n)
             print(len(renters))
+            print(statistics.median(Statistics.avg_days_in_market))
 
 
 class Simulation(Agent):
@@ -934,6 +945,7 @@ class Simulation(Agent):
             self.event_proc(Event.stop)
 
         if id_event == Event.period_start:
+            random.shuffle(Simulation.houses_for_sale)
             print(Simulation.time)
             #make counter for number of deaths this period
             Simulation.dead_this_period = 0
