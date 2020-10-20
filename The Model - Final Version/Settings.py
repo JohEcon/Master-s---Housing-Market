@@ -6,7 +6,7 @@ class Settings: pass
 #Number of agents and periods settings
 Settings.number_of_agents = 5000
 Settings.share_of_houses = 0.6#number of houses compared to number of agents
-Settings.number_of_periods = 2400 #number of periods the model will run
+Settings.number_of_periods = 3600 #number of periods the model will run
 Settings.periods_in_year = 12
 #--------------------------------------------
 
@@ -16,7 +16,7 @@ Settings.price_adjustment = -0.015 #how much seller lowers house price with
 Settings.max_houses_checked = 50 #how many houses the household will examine if it should be surveyed
 Settings.houses_surveyed = 4 #how many houses a household can inspect in one period
 Settings.price_premium = 1.06 #how much higher the sellers listing price is compared to valuation
-Settings.price_range = 600000 # the +/- range households will use when searching for houses
+Settings.price_range = 250000 # the +/- range households will use when searching for houses
 Settings.dynamic_search_range = 0 #set 0 for off 1 for on. Setting on will slow down runtime of model
 Settings.periods_between_price_assessment = 12 #how often hoseholds not for sale get valuated
 
@@ -55,7 +55,7 @@ Settings.income_loan_multiplier = 3.5 #how much a household can lend compared to
 #Graphics settings
 Settings.graphics_show = False
 Settings.graphics_periods_per_pic = 12
-Settings.ratio_print = 0.02 #share of how many houses/households/loans information that is printed at the end of simulation
+Settings.ratio_print = 0.005 #share of how many houses/households/loans information that is printed at the end of simulation
 #--------------------------------------------
 #other settings
 Settings.utility_alpha = 0.287

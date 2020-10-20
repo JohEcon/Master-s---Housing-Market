@@ -206,7 +206,7 @@ class Houses(Agent):
                 self.increase_periods_for_sale()
 
             if self._for_sale == True and self._owner == None and self._seller == None and self._periods_for_sale % Settings.price_adjustment_frequency == 0:
-                self.price_change(-0.05)
+                self.price_change(-0.02)
 
         if id_event == Event.update:
             pass
@@ -772,12 +772,14 @@ class Statistics(Agent):
             Statistics.house_quality = []
             Statistics.house_price = []
             Statistics.w_p_q = []
+            Statistics.avg_w_p_q = []
             Statistics.w_price_quality = []
             Statistics.sorted_house_quality = []
             Statistics.sorted_house_price = []
             Statistics.house_q = []
             Statistics.house_p = []
             Statistics.period = []
+            Statistics.avg_w_p_q_period = []
 
 
         if id_event == Event.period_start:
@@ -821,12 +823,20 @@ class Statistics(Agent):
             else:
                 avg_days = 0
 
+            if Statistics.sales_this_period > 0:
+                avg_w_p_q_1 = sum(Statistics.w_p_q) / Statistics.sales_this_period
+            else:
+                avg_w_p_q_1 = 0
+
             Statistics.avg_days_in_market.append(avg_days)
+            Statistics.avg_w_p_q.append(avg_w_p_q_1)
             Statistics.avg_days_period.append(sum(Statistics.avg_days_in_market[-13: -1])/12)
+            Statistics.avg_w_p_q_period.append(sum(Statistics.avg_w_p_q[-13: -1]) / 12)
             Statistics.period.append(Simulation.time)
             Statistics.interest.append(Simulation.bank._interest)
             Statistics.days_in_market = 0
             Statistics.sales_this_period = 0
+            Statistics.w_p_q = []
 
         if id_event == Event.period_end:
             pass
@@ -854,7 +864,7 @@ class Statistics(Agent):
 
             fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
             fig, (ax3, ax4, ax5) = plt.subplots(nrows=1, ncols=3,figsize = (8, 4))
-            fig, (ax6) = plt.subplots(nrows=1, ncols=1, figsize=(8, 4))
+            fig, (ax6, ax7) = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
             ax1.hist(household_inc_all, bins=600, color="black")
             ax1.axis(xmin=0, xmax=100000)
             ax1.set_xticks([11500, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000])
@@ -871,8 +881,8 @@ class Statistics(Agent):
 
             ax3.scatter(Statistics.period, Statistics.avg_days_period)
             ax3.axis(ymin=0, ymax=40)
-            plt_listx = Statistics.house_quality[-101 :-1]
-            plt_listy = Statistics.house_price[-101 :-1]
+            plt_listx = Statistics.house_quality[-801 :-1]
+            plt_listy = Statistics.house_price[-801 :-1]
             ax4.scatter(plt_listx, plt_listy)
             ax4.set_title("House price and quality")
             ax4.set_xlabel("quality")
@@ -885,14 +895,50 @@ class Statistics(Agent):
             ax6.bar(Statistics.period,Statistics.interest)
             ax6.axis(ymin=0.04)
 
+            ax7.bar(Statistics.period, Statistics.avg_w_p_q_period)
             fig.tight_layout()
 
             renters = []
             for n in Simulation.households:
                 if n.renting == True:
                     renters.append(n)
+
+            with open('interest.txt', 'w') as filehandle:
+                for i in Statistics.interest:
+                    filehandle.write('%s\n' % i)
+
+            with open('house_quality.txt', 'w') as filehandle:
+                for i in Statistics.house_quality:
+                    filehandle.write('%s\n' % i)
+
+            with open('house_price.txt', 'w') as filehandle:
+                for i in Statistics.house_price:
+                    filehandle.write('%s\n' % i)
+
+            with open('TOM.txt', 'w') as filehandle:
+                for i in Statistics.avg_days_period:
+                    filehandle.write('%s\n' % i)
+
+            with open('wpq.txt', 'w') as filehandle:
+                for i in Statistics.avg_w_p_q_period:
+                    filehandle.write('%s\n' % i)
+
+            with open('h_quality.txt', 'w') as filehandle:
+                for i in household_q:
+                    filehandle.write('%s\n' % i)
+
+            with open('h_inc.txt', 'w') as filehandle:
+                for i in household_inc:
+                    filehandle.write('%s\n' % i)
+
+
+
+
             print(len(renters))
             print(statistics.median(Statistics.avg_days_in_market))
+            print(Statistics.interest)
+            print(Statistics.house_quality)
+            print(Statistics.house_price)
 
 
 class Simulation(Agent):
