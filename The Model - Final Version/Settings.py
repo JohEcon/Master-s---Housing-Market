@@ -5,7 +5,7 @@ class Settings: pass
 #--------------------------------------------
 #Number of agents and periods settings
 Settings.number_of_agents = 5000
-Settings.share_of_houses = 0.6#number of houses compared to number of agents
+Settings.share_of_houses = 0.6 #number of houses compared to number of agents
 Settings.number_of_periods = 3600 #number of periods the model will run
 Settings.periods_in_year = 12
 #--------------------------------------------
@@ -33,9 +33,9 @@ Settings.interest_tax = 0
 
 #income and age settings
 Settings.starting_income = 12000
-Settings.su_income = 6200
-Settings.kh_income = 11500
-Settings.pension_share = 0.9
+Settings.su_income = 6200 #Sets the lowest income for a household younger than 30
+Settings.kh_income = 11500 #Sets the lowest income for a household older than 30
+Settings.pension_share = 0.9 #Sets the pension income as a fraction of household income
 Settings.starting_age = 20
 Settings.retire_age = 67
 Settings.max_age = 109
@@ -52,17 +52,20 @@ Settings.max_low_income_count = 6 #how many periods household can have a low inc
 Settings.income_loan_multiplier = 3.5 #how much a household can lend compared to yearly income
 #--------------------------------------------
 
-#Graphics settings
-Settings.graphics_show = False
-Settings.graphics_periods_per_pic = 12
-Settings.ratio_print = 0.005 #share of how many houses/households/loans information that is printed at the end of simulation
+#Settings for exogenous shocks
+Settings.period_of_shock = 2400 #the period in which the shocks will happen
+Settings.income_shock = 0 #set 0 for no shock, 1 for shock
+Settings.income_shock_size = -0.4 #The ratio the income is reduced by
+Settings.interest_shock = 0 #set 0 for no shock, 1 for shock
+Settings.interest_shock_level = 0.10 #The risk free rate after the shock
+
 #--------------------------------------------
 #other settings
 Settings.utility_alpha = 0.287
-Settings.random_seed = 1 #If equal to 0, seed is random
-Settings.rent_quality = 30
-Settings.rent_annuity = 3000
-
+Settings.random_seed = 1000 #If equal to 0, seed is random
+Settings.rent_quality = 30 #quality of rentals
+Settings.rent_annuity = 3000 #montly rent for rentals
+Settings.ratio_print = 0.01 #share of how many houses/households/loans information that is printed at the end of simulation
 
 
 #-------------------------------------------------------------------------------------------------------------------------------

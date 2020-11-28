@@ -1,5 +1,6 @@
 # We import the DREAM agent
 import numpy
+import time
 import statistics
 import matplotlib.pyplot as plt
 from Data import *
@@ -266,8 +267,8 @@ class Bank(Agent):
 
     def set_interest(self):
         try:
-            default = sum(Statistics.defaults[-24:-1])*6 / (sum(Statistics.loans[-12:-1]) / 12)
-            coll = sum(Statistics.coll_tot_all[-12:-1])/12
+            default = sum(Statistics.defaults[-25:-1])*2/ (sum(Statistics.loans[-13:-1]) / 12)
+            coll = sum(Statistics.coll_tot_all[-13:-1])/12
             mortgage = (1+Settings.rf_interest-default*coll)/(1-default)-1
         except:
             mortgage = Settings.rf_interest
@@ -276,7 +277,11 @@ class Bank(Agent):
     def event_proc(self, id_event):
         super().event_proc(id_event)
         if id_event == Event.period_start:
+            if Simulation.time == Settings.period_of_shock and Settings.interest_shock == 1:
+                Settings.rf_interest = Settings.interest_shock_level
             self._interest = self.set_interest()
+
+
 
 
 
@@ -735,10 +740,15 @@ class Household(Agent):
                 if self._age == Settings.retire_age:
                     self._income = self._income*Settings.pension_share
 
+                if Simulation.time == Settings.period_of_shock:
+                    if Settings.income_shock == 1:
+                        self._income = (1-Settings.income_shock_size)*self._income
+
                 # if income is too low and household is young, set income to SU-level
                 if self._age > Settings.starting_age and self._income < Settings.su_income:
                     self._income = Settings.su_income
 
+                # if income is too low set income to KH level
                 if self._age >= 30 and self._income < Settings.kh_income:
                     self._income = Settings.kh_income
 
@@ -759,8 +769,10 @@ class Statistics(Agent):
             # Creating lists for later use
             Statistics.sales_this_period = 0
             Statistics.defaults_period = 0
+            Statistics.defaults_period_total = []
             Statistics.sales_last_interval = 0
             Statistics.days_in_market = 0
+            Statistics.renters = []
             Statistics.sales_total = []
             Statistics.interest = []
             Statistics.defaults = []
@@ -828,6 +840,7 @@ class Statistics(Agent):
             else:
                 avg_w_p_q_1 = 0
 
+            Statistics.defaults_period_total.append(Statistics.defaults_period)
             Statistics.avg_days_in_market.append(avg_days)
             Statistics.avg_w_p_q.append(avg_w_p_q_1)
             Statistics.avg_days_period.append(sum(Statistics.avg_days_in_market[-13: -1])/12)
@@ -836,7 +849,14 @@ class Statistics(Agent):
             Statistics.interest.append(Simulation.bank._interest)
             Statistics.days_in_market = 0
             Statistics.sales_this_period = 0
+            Statistics.defaults_period = 0
             Statistics.w_p_q = []
+
+            renters_period = 0
+            for n in Simulation.households:
+                if n.renting == True:
+                    renters_period += 1
+            Statistics.renters.append(renters_period)
 
         if id_event == Event.period_end:
             pass
@@ -847,7 +867,6 @@ class Statistics(Agent):
             household_inc_all= []
             house_q = []
             Statistics.w_price_quality = [p/q for p,q in zip(Statistics.house_price, Statistics.house_quality)]
-            print(Statistics.w_price_quality)
 
 
             for n in Simulation.houses:
@@ -861,47 +880,6 @@ class Statistics(Agent):
                 else:
                     pass
                     #household_q.append(Simulation.rent_unit.quality)
-
-            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
-            fig, (ax3, ax4, ax5) = plt.subplots(nrows=1, ncols=3,figsize = (8, 4))
-            fig, (ax6, ax7) = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
-            ax1.hist(household_inc_all, bins=600, color="black")
-            ax1.axis(xmin=0, xmax=100000)
-            ax1.set_xticks([11500, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000])
-            ax1.set_yticks([])
-            xlabels = ['{:,.0f}'.format(x) + 'K' for x in ax1.get_xticks() / 1000]
-            ax1.set_xticklabels(xlabels)
-            ax1.set_xlabel("Monthly Income")
-
-            ax2.hist(house_q, bins=800, color="black")
-            ax2.axis(xmin=0, xmax=100000)
-            ax2.set_xticks([10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000])
-            xlabels = ['{:,.0f}'.format(x) + 'K' for x in ax2.get_xticks() / 1000]
-            ax2.set_xticklabels(xlabels)
-
-            ax3.scatter(Statistics.period, Statistics.avg_days_period)
-            ax3.axis(ymin=0, ymax=40)
-            plt_listx = Statistics.house_quality[-801 :-1]
-            plt_listy = Statistics.house_price[-801 :-1]
-            ax4.scatter(plt_listx, plt_listy)
-            ax4.set_title("House price and quality")
-            ax4.set_xlabel("quality")
-            ax4.set_ylabel("price")
-
-            ax5.scatter(household_q, household_inc)
-            ax5.axis(xmin=0.00, xmax=1000, ymin=5000, ymax=100000)
-            print(household_q)
-            print(household_inc)
-            ax6.bar(Statistics.period,Statistics.interest)
-            ax6.axis(ymin=0.04)
-
-            ax7.bar(Statistics.period, Statistics.avg_w_p_q_period)
-            fig.tight_layout()
-
-            renters = []
-            for n in Simulation.households:
-                if n.renting == True:
-                    renters.append(n)
 
             with open('interest.txt', 'w') as filehandle:
                 for i in Statistics.interest:
@@ -931,17 +909,19 @@ class Statistics(Agent):
                 for i in household_inc:
                     filehandle.write('%s\n' % i)
 
+            with open('defaults.txt', 'w') as filehandle:
+                for i in Statistics.defaults:
+                    filehandle.write('%s\n' % i)
 
+            with open('renters.txt', 'w') as filehandle:
+                for i in Statistics.renters:
+                    filehandle.write('%s\n' % i)
 
-
-            print(len(renters))
-            print(statistics.median(Statistics.avg_days_in_market))
-            print(Statistics.interest)
-            print(Statistics.house_quality)
-            print(Statistics.house_price)
 
 
 class Simulation(Agent):
+
+
     # Static fields
     Households = Agent()
     time = 1
@@ -950,6 +930,8 @@ class Simulation(Agent):
 
     def __init__(self):
         super().__init__()
+        # start measurement of runtime
+        Simulation.start_time = time.time()
         # Initial allocation of all agents
         # Children of simulation:
         Simulation.rent_unit = Rent_unit(self)
@@ -967,6 +949,7 @@ class Simulation(Agent):
 
         # Start the simulation
         self.event_proc(Event.start)
+
 
     def event_proc(self, id_event):
         if id_event == Event.start:
@@ -1016,11 +999,5 @@ class Simulation(Agent):
 if Settings.random_seed != 0:
     numpy.random.seed(Settings.random_seed)
 
-
 Simulation()
-
-plt.show()
-plt.show()
-
-
-
+print("--- %s seconds ---" % (time.time() - Simulation.start_time ))
