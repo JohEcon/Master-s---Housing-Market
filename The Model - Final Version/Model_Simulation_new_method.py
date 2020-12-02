@@ -1,4 +1,4 @@
-# We import the DREAM agent
+# Imports
 import numpy
 import time
 import statistics
@@ -10,9 +10,9 @@ from math import *
 from decimal import Decimal as dec
 
 # We allocate an agent object
-
 Model = Agent()
 
+# Create the Loan class
 class Loan(Agent):
     def __init__(self, parent = None, principal = None, interest = None, annuity = None, owner = None):
         super().__init__(parent)
@@ -31,6 +31,7 @@ class Loan(Agent):
         return "Loan(ID: {a}, principal: {b}, interest: {c}, annuity: {d} duration: {e}, time left: {f}, owner: {g})".format(
             a = self.get_id(), b = round(self._principal), c = round(self._interest, 4), d = round(self._annuity), e = self._duration, f = self._time_left, g = self._owner.get_id())
 
+    # We set the properties of the loan agent
     @property
     def principal(self):
         return self._principal
@@ -63,20 +64,24 @@ class Loan(Agent):
     def owner(self):
         return self._owner
 
+    # We Define methods for the loan class
     def interest_payment(self):
         int_payment = self._interest/Settings.periods_in_year * self._principal
         return int_payment
 
-    def annuity_tax(self):
-        after_tax = self._annuity - (self._principal * self._interest/Settings.periods_in_year) * Settings.interest_tax
-        return after_tax
 
+#methods for paying and calculating annuity
     def pay_annuity(self):
         self._principal += -self._annuity + self.interest_payment()
         self._time_left += -1
         if self._time_left == 0:
             self.owner._loan = None
             self.remove_this_agent()
+
+    def annuity_tax(self):
+        after_tax = self._annuity - (
+                    self._principal * self._interest / Settings.periods_in_year) * Settings.interest_tax
+        return after_tax
 
     def annuity_after_n_years(self, n):
         annuity_after = self._annuity - self._annuity * dict_annuity[n] * Settings.interest_tax
@@ -91,12 +96,11 @@ class Loan(Agent):
 
             self.pay_annuity()
 
-
         if id_event == Event.stop:
             if random.uniform(0, 1) < Settings.ratio_print:
                 print(repr(self))
 
-
+# Create the Rental Unit class
 class Rent_unit(Agent):
     def __init__(self, parent = None, quality = Settings.rent_quality, annuity = Settings.rent_annuity):
         super().__init__(parent)
@@ -112,6 +116,7 @@ class Rent_unit(Agent):
     def annuity(self):
         return self._annuity
 
+# Create the Houses class
 class Houses(Agent):
     def __init__(self, parent = None, quality = 0, owner = None, price = 0, for_sale = True, seller = None):
         super().__init__(parent)
@@ -154,6 +159,7 @@ class Houses(Agent):
         return self._seller
 
     @property
+
     def periods_for_sale(self):
         return self._periods_for_sale
 
@@ -163,6 +169,7 @@ class Houses(Agent):
     def setting_seller(self, seller):
         self._seller = seller
 
+    #method used when setting the house for sale. If dataset is not big enough to estimate a sales price, the prise is set arbirarily.
     def setting_for_sale(self, seller):
         if self._for_sale == False:
             self._for_sale = True
@@ -178,10 +185,12 @@ class Houses(Agent):
         else:
             pass
 
+    #method to change the listed house price by a pct.
     def price_change(self, change_pct):
         self._price = self._price * (1 + change_pct)
         if self._price <0:
             self._price = 0
+
 
     def increase_periods_for_sale(self):
         self._periods_for_sale += 1
@@ -191,13 +200,16 @@ class Houses(Agent):
         self._for_sale = False
         Simulation.houses_for_sale.remove(self)
 
+    # method to change the house price.
     def set_price(self, price):
         self._price = price
 
 
     def event_proc(self, id_event):
         if id_event == Event.start:
+            #Randomly generate quality of the house hwn the model is initialized
             self._quality = float(numpy.random.beta(2, 3))*1000
+            # Set price of house based on quality
             self._price = self._quality*2000
             self._exp_price =self._price
 
@@ -206,6 +218,7 @@ class Houses(Agent):
             if self._for_sale == True:
                 self.increase_periods_for_sale()
 
+            #reduce price of house, if the house is for sale, but not yet owned by anyone (happends in the beginning of the simulation)
             if self._for_sale == True and self._owner == None and self._seller == None and self._periods_for_sale % Settings.price_adjustment_frequency == 0:
                 self.price_change(-0.02)
 
@@ -213,7 +226,7 @@ class Houses(Agent):
             pass
 
         if id_event == Event.period_end:
-                #update expected house price
+                #update expected house price (used by bank when estimating max budget).
                 if Simulation.time % Settings.periods_between_price_assessment == 0:
                     try:
                         if len(Statistics.sorted_house_q) > 1:
@@ -225,6 +238,7 @@ class Houses(Agent):
             if random.uniform(0, 1) < Settings.ratio_print:
                 print(repr(self))
 
+# Creating Bank class
 class Bank(Agent):
     def __init__(self, parent = None, interest = Settings.rf_interest):
         super().__init__(parent)
@@ -232,8 +246,6 @@ class Bank(Agent):
 
         # Children of bank:
         Bank.Loans = Agent(self)
-
-
 
     @property
     def interest(self):
@@ -251,11 +263,13 @@ class Bank(Agent):
             max_budget = max_loan
         return max_budget
 
+    # Method to calculate the annuity given a certain principal
     def get_annuity(self, principal):
         interest = self._interest
         annuity = ( principal * (interest/Settings.periods_in_year) ) / ((1 - (1 + (interest / Settings.periods_in_year)) ** ( - (Settings.loan_length*Settings.periods_in_year) )))
         return annuity
 
+    # Method to give loan to household based on house price,owner equity and mortgage interest rate
     def get_loan(self, house_price, owner):
         if owner.equity != None:
             principal = house_price - owner.equity
@@ -265,6 +279,7 @@ class Bank(Agent):
         annuity = self.get_annuity(principal)
         owner.set_loan(Loan(parent=Bank.Loans, principal=principal, interest=self._interest, annuity=annuity, owner=owner))
 
+    # Method to calculate the interest rate based on defaults
     def set_interest(self):
         try:
             default = sum(Statistics.defaults[-25:-1])*2/ (sum(Statistics.loans[-13:-1]) / 12)
@@ -281,11 +296,7 @@ class Bank(Agent):
                 Settings.rf_interest = Settings.interest_shock_level
             self._interest = self.set_interest()
 
-
-
-
-
-
+#Create Household class
 class Household(Agent):
 
     def __init__(self, parent=None, wealth = 0, pdeath = 0, age = Settings.starting_age, house_owned = None, dead = False, moving = False, max_budget = 0):
@@ -398,6 +409,7 @@ class Household(Agent):
     def utility_alpha(self):
         return self._utility_alpha
 
+    #Method to find search interval
     def search_interval(self):
         test_value = [100, 200, 300, 400, 500, 600, 700, 800, 900]
         income = pay_income_taxes(self.income)
@@ -418,7 +430,7 @@ class Household(Agent):
             p_max = self._max_budget
         return p_max
 
-
+    #Method to handle household death
     def household_dies(self):
         Simulation.dead_this_period += 1
         self._dead = True
@@ -457,6 +469,7 @@ class Household(Agent):
         cd_utility = math.log10(spending) * (1 - a) + math.log10(quality) * a
         return cd_utility
 
+    #method to handle bankruptcy
     def bankrupt(self):
         if self._house_owned != None:
             self._house_selling = self.house_owned
@@ -471,6 +484,7 @@ class Household(Agent):
     def set_loan(self, loan):
         self._loan = loan
 
+    #Method to communicate with seller/buyer to sell/buy a house
     def communication(self, communicate, house):
         if communicate == Communication.buy_house:
 
@@ -487,7 +501,6 @@ class Household(Agent):
             Statistics.days_in_market += house._periods_for_sale
             house.unlisting_house()
             #Add house sales price and quality to statistics database
-
             Statistics.house_q.append(house.quality)
             Statistics.house_p.append(house.price)
             Statistics.house_quality.append(house.quality)
@@ -495,7 +508,6 @@ class Household(Agent):
 
             Statistics.w_p_q.append(house.price/house.quality)
             Statistics.sales_this_period += 1
-
 
         if communicate == Communication.sell_house:
             #remove yourself as seller
@@ -824,7 +836,7 @@ class Statistics(Agent):
             Statistics.sales_last_interval = sum(Statistics.sales_total[-Settings.periods_regression:-1])+Statistics.sales_total[-1]
 
 
-            #We do the local regression
+            #We do the poor man's local regression (Real estate agent)
             if Statistics.sales_last_interval > 1:
                 Statistics.sorted_house_q, Statistics.sorted_house_p = local_mean(Statistics.house_q[-Statistics.sales_last_interval:-1],
                                                                                             Statistics.house_p[-Statistics.sales_last_interval:-1],
@@ -920,8 +932,6 @@ class Statistics(Agent):
 
 
 class Simulation(Agent):
-
-
     # Static fields
     Households = Agent()
     time = 1
@@ -1000,4 +1010,5 @@ if Settings.random_seed != 0:
     numpy.random.seed(Settings.random_seed)
 
 Simulation()
+#printing how long it took to run the simulation
 print("--- %s seconds ---" % (time.time() - Simulation.start_time ))
